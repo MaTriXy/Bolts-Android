@@ -11,7 +11,10 @@ package bolts;
 
 import android.annotation.SuppressLint;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
@@ -32,11 +35,14 @@ import java.util.concurrent.TimeUnit;
  * size 0 and maxPoolSize is Integer.MAX_VALUE. This is dangerous because it can create an unchecked
  * amount of threads.
  */
+/* package */ final class AndroidExecutors {
 
-/** package */ final class Executors {
+  private static final AndroidExecutors INSTANCE = new AndroidExecutors();
 
-  private Executors() {
-    // do nothing
+  private final Executor uiThread;
+
+  private AndroidExecutors() {
+    uiThread = new UIThreadExecutor();
   }
 
   /**
@@ -53,7 +59,6 @@ import java.util.concurrent.TimeUnit;
   /* package */ static final int CORE_POOL_SIZE = CPU_COUNT + 1;
   /* package */ static final int MAX_POOL_SIZE = CPU_COUNT * 2 + 1;
   /* package */ static final long KEEP_ALIVE_TIME = 1L;
-  /* package */ static final int MAX_QUEUE_SIZE = 128;
 
   /**
    * Creates a proper Cached Thread Pool. Tasks will reuse cached threads if available
@@ -70,7 +75,7 @@ import java.util.concurrent.TimeUnit;
         CORE_POOL_SIZE,
         MAX_POOL_SIZE,
         KEEP_ALIVE_TIME, TimeUnit.SECONDS,
-        new LinkedBlockingQueue<Runnable>(MAX_QUEUE_SIZE));
+        new LinkedBlockingQueue<Runnable>());
 
     allowCoreThreadTimeout(executor, true);
 
@@ -93,7 +98,7 @@ import java.util.concurrent.TimeUnit;
             CORE_POOL_SIZE,
             MAX_POOL_SIZE,
             KEEP_ALIVE_TIME, TimeUnit.SECONDS,
-            new LinkedBlockingQueue<Runnable>(MAX_QUEUE_SIZE),
+            new LinkedBlockingQueue<Runnable>(),
             threadFactory);
 
     allowCoreThreadTimeout(executor, true);
@@ -114,6 +119,23 @@ import java.util.concurrent.TimeUnit;
   public static void allowCoreThreadTimeout(ThreadPoolExecutor executor, boolean value) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD) {
       executor.allowCoreThreadTimeOut(value);
+    }
+  }
+
+  /**
+   * An {@link java.util.concurrent.Executor} that executes tasks on the UI thread.
+   */
+  public static Executor uiThread() {
+    return INSTANCE.uiThread;
+  }
+
+  /**
+   * An {@link java.util.concurrent.Executor} that runs tasks on the UI thread.
+   */
+  private static class UIThreadExecutor implements Executor {
+    @Override
+    public void execute(Runnable command) {
+      new Handler(Looper.getMainLooper()).post(command);
     }
   }
 }

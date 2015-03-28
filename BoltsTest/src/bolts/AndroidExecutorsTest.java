@@ -18,12 +18,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 
-public class ExecutorsTest extends InstrumentationTestCase {
+public class AndroidExecutorsTest extends InstrumentationTestCase {
 
-  private static final int CORE_POOL_SIZE = Executors.CORE_POOL_SIZE;
-  private static final int MAX_POOL_SIZE = Executors.MAX_POOL_SIZE;
-  private static final int THREAD_TIMEOUT = (int)(Executors.KEEP_ALIVE_TIME * 1000 * 1.1);
-  private static final int MAX_QUEUE_SIZE = Executors.MAX_QUEUE_SIZE;
+  private static final int CORE_POOL_SIZE = AndroidExecutors.CORE_POOL_SIZE;
+  private static final int MAX_POOL_SIZE = AndroidExecutors.MAX_POOL_SIZE;
+  private static final int THREAD_TIMEOUT = (int)(AndroidExecutors.KEEP_ALIVE_TIME * 1000 * 1.1);
 
   LinkedList<CountDownLatch> corePoolAwaitLatchStack;
   LinkedList<CountDownLatch> corePoolEndLatchStack;
@@ -44,7 +43,7 @@ public class ExecutorsTest extends InstrumentationTestCase {
    * @throws InterruptedException
    */
   public void testNewCachedThreadPoolTimeout() throws InterruptedException {
-    ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newCachedThreadPool();
+    ThreadPoolExecutor executor = (ThreadPoolExecutor) AndroidExecutors.newCachedThreadPool();
 
     // Make sure we start at 0
     assertEquals(0, executor.getPoolSize());
@@ -64,53 +63,9 @@ public class ExecutorsTest extends InstrumentationTestCase {
   }
 
   /**
-   * Test that the queue gets filled and throws if filled over the max.
-   *
-   * Note: Core thread pool timeout is only available on android-9+
-   *
-   * @throws InterruptedException
-   */
-  public void testNewCachedThreadPoolQueue() throws InterruptedException {
-    ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newCachedThreadPool();
-    assertEquals(0, executor.getPoolSize());
-    pushTasks(executor, CORE_POOL_SIZE, true);
-
-    try {
-      // Fill queue to max
-      pushTasks(executor, MAX_QUEUE_SIZE, false);
-      assertEquals(CORE_POOL_SIZE, executor.getPoolSize());
-      assertEquals(MAX_QUEUE_SIZE, executor.getQueue().size());
-
-      // Overflow queue
-      pushTasks(executor, MAX_POOL_SIZE, false);
-      assertEquals(MAX_POOL_SIZE, executor.getPoolSize());
-      assertEquals(MAX_QUEUE_SIZE, executor.getQueue().size());
-
-      executor.execute(newWaitRunnable(null, null, null));
-      fail("Failed to reject operation due to full queue");
-    } catch (RejectedExecutionException e) {
-      // Do we still have our queue?
-      assertEquals(MAX_POOL_SIZE, executor.getPoolSize());
-      assertEquals(MAX_QUEUE_SIZE, executor.getQueue().size());
-    } finally {
-      // empty overflow
-      popTasks(false);
-      // empty queue
-      popTasks(false);
-    }
-
-    popTasks(true);
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD) {
-      assertEquals(0, executor.getPoolSize());
-    } else {
-      assertEquals(CORE_POOL_SIZE, executor.getPoolSize());
-    }
-  }
-
-  /**
    * Push or start X operations on to the executor that will not complete until they are popped off.
    *
-   * @see ExecutorsTest#popTasks(boolean)
+   * @see AndroidExecutorsTest#popTasks(boolean)
    *
    * @param executor
    *          The executor to execute operations on.

@@ -1,5 +1,7 @@
 Bolts
 ============
+[![Build Status](http://img.shields.io/travis/BoltsFramework/Bolts-Android/master.svg?style=flat)](https://travis-ci.org/BoltsFramework/Bolts-Android)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.parse.bolts/bolts-android/badge.svg?style=flat)](https://maven-badges.herokuapp.com/maven-central/com.parse.bolts/bolts-android)
 
 Bolts is a collection of low-level libraries designed to make developing mobile
 apps easier. Bolts was designed by Parse and Facebook for our own internal use,
@@ -18,7 +20,6 @@ For more information, see the [Bolts Android API Reference](http://boltsframewor
 
 To build a truly responsive Android application, you must keep long-running operations off of the UI thread, and be careful to avoid blocking anything the UI thread might be waiting on. This means you will need to execute various operations in the background. To make this easier, we've added a class called `Task`. A task represents an asynchronous operation. Typically, a `Task` is returned from an asynchronous function and gives the ability to continue processing the result of the task. When a task is returned from a function, it's already begun doing its job. A task is not tied to a particular threading model: it represents the work being done, not where it is executing. Tasks have many advantages over other methods of asynchronous programming, such as callbacks and `AsyncTask`.
 * They consume fewer system resources, since they don't occupy a thread while waiting on other tasks.
-* They are independent of threading model, so you don't have to worry about reaching the maximum number of allowed threads, as can happen with `AsyncTask`.
 * Performing several tasks in a row will not create nested "pyramid" code as you would get when using only callbacks.
 * Tasks are fully composable, allowing you to perform branching, parallelism, and complex error handling, without the spaghetti code of having many named callbacks.
 * You can arrange task-based code in the order that it executes, rather than having to split your logic across scattered callback functions.
@@ -85,23 +86,23 @@ saveAsync(obj).onSuccess(new Continuation<ParseObject, Void>() {
 Tasks are a little bit magical, in that they let you chain them without nesting. If you use `continueWithTask` instead of `continueWith`, then you can return a new task. The task returned by `continueWithTask` will not be considered finished until the new task returned from within `continueWithTask` is. This lets you perform multiple actions without incurring the pyramid code you would get with callbacks. Likewise, `onSuccessTask` is a version of `onSuccess` that returns a new task. So, use `continueWith`/`onSuccess` to do more synchronous work, or `continueWithTask`/`onSuccessTask` to do more asynchronous work.
 
 ```java
-final ParseQuery<ParseObject> query = new ParseQuery.getQuery("Student");
+final ParseQuery<ParseObject> query = ParseQuery.getQuery("Student");
 query.orderByDescending("gpa");
-findAsync(query).onSuccessTask(new Continuation<List<ParseObject>, ParseObject>() {
+findAsync(query).onSuccessTask(new Continuation<List<ParseObject>, Task<ParseObject>>() {
   public Task<ParseObject> then(Task<List<ParseObject>> task) throws Exception {
     List<ParseObject> students = task.getResult();
     students.get(0).put("valedictorian", true);
     return saveAsync(students.get(0));
   }
-}).onSuccessTask(new Continuation<ParseObject, List<ParseObject>>() {
+}).onSuccessTask(new Continuation<ParseObject, Task<List<ParseObject>>>() {
   public Task<List<ParseObject>> then(Task<ParseObject> task) throws Exception{
     ParseObject valedictorian = task.getResult();
     return findAsync(query);
   }
-}).onSuccessTask(new Continuation<List<ParseObject>, ParseObject>() {
+}).onSuccessTask(new Continuation<List<ParseObject>, Task<ParseObject>>() {
   public Task<ParseObject> then(Task<List<ParseObject>> task) throws Exception {
     List<ParseObject> students = task.getResult();
-    students.get(1).set("salutatorian", true);
+    students.get(1).put("salutatorian", true);
     return saveAsync(students.get(1));
   }
 }).onSuccess(new Continuation<ParseObject, Void>() {
@@ -117,22 +118,22 @@ findAsync(query).onSuccessTask(new Continuation<List<ParseObject>, ParseObject>(
 By carefully choosing whether to call `continueWith` or `onSuccess`, you can control how errors are propagated in your application. Using `continueWith` lets you handle errors by transforming them or dealing with them. You can think of failed tasks kind of like throwing an exception. In fact, if you throw an exception inside a continuation, the resulting task will be faulted with that exception.
 
 ```java
-final ParseQuery<ParseObject> query = new ParseQuery.getQuery("Student");
+final ParseQuery<ParseObject> query = ParseQuery.getQuery("Student");
 query.orderByDescending("gpa");
-findAsync(query).onSuccessTask(new Continuation<List<ParseObject>, ParseObject>() {
+findAsync(query).onSuccessTask(new Continuation<List<ParseObject>, Task<ParseObject>>() {
   public Task<ParseObject> then(Task<List<ParseObject>> task) throws Exception {
     List<ParseObject> students = task.getResult();
     students.get(0).put("valedictorian", true);
     // Force this callback to fail.
     throw new RuntimeException("There was an error.");
   }
-}).onSuccessTask(new Continuation<ParseObject, List<ParseObject>>() {
+}).onSuccessTask(new Continuation<ParseObject, Task<List<ParseObject>>>() {
   public Task<List<ParseObject>> then(Task<ParseObject> task) throws Exception {
     // Now this continuation will be skipped.
     ParseObject valedictorian = task.getResult();
     return findAsync(query);
   }
-}).continueWithTask(new Continuation<List<ParseObject>, ParseObject>() {
+}).continueWithTask(new Continuation<List<ParseObject>, Task<ParseObject>>() {
   public Task<ParseObject> then(Task<List<ParseObject>> task) throws Exception {
     if (task.isFaulted()) {
       // This error handler WILL be called.
@@ -144,7 +145,7 @@ findAsync(query).onSuccessTask(new Continuation<List<ParseObject>, ParseObject>(
 
     // This will also be skipped.
     List<ParseObject> students = task.getResult();
-    students.get(1).set("salutatorian", true);
+    students.get(1).put("salutatorian", true);
     return saveAsync(students.get(1));
   }
 }).onSuccess(new Continuation<ParseObject, Void>() {
@@ -166,13 +167,13 @@ When you're getting started, you can just use the tasks returned from methods li
 public Task<String> succeedAsync() {
   // Java Generics syntax can be confusing sometimes. :)
   // This creates a TCS for a Task<String>.
-  Task<String>.TaskCompletionSource successful = Task.<String> create();
+  Task<String>.TaskCompletionSource successful = Task.create();
   successful.setResult("The good result.");
   return successful.getTask();
 }
 
 public Task<String> failAsync() {
-  Task<String>.TaskCompletionSource failed = Task.<String> create();
+  Task<String>.TaskCompletionSource failed = Task.create();
   failed.setError(new RuntimeException("An error message."));
   return failed.getTask();
 }
@@ -191,18 +192,18 @@ Task<String> failed = Task.forError(new RuntimeException("An error message."));
 With these tools, it's easy to make your own asynchronous functions that return tasks. For example, you can define `fetchAsync` easily.
 
 ```java
-public Task<Void> fetchAsync(ParseObject obj) {
-  Task<Void>.TaskCompletionSource task = Task.<Void> create();
+public Task<ParseObject> fetchAsync(ParseObject obj) {
+  final Task<ParseObject>.TaskCompletionSource tcs = Task.create();
   obj.fetchInBackground(new GetCallback() {
     public void done(ParseObject object, ParseException e) {
      if (e == null) {
-       task.setResult(object);
+       tcs.setResult(object);
      } else {
-       task.setError(e);
+       tcs.setError(e);
      }
    }
   });
-  return task.getTask();
+  return tcs.getTask();
 }
 ```
 
@@ -224,14 +225,14 @@ Tasks are convenient when you want to do a series of tasks in a row, each one wa
 ParseQuery<ParseObject> query = ParseQuery.getQuery("Comments");
 query.whereEqualTo("post", 123);
 
-findAsync(query).continueWithTask(new Continuation<List<ParseObject>, Void>() {
-  public Task<Void> then(List<ParseObject> results) throws Exception {
+findAsync(query).continueWithTask(new Continuation<List<ParseObject>, Task<Void>>() {
+  public Task<Void> then(Task<List<ParseObject>> results) throws Exception {
     // Create a trivial completed task as a base case.
     Task<Void> task = Task.forResult(null);
-    for (ParseObject result : results) {
+    for (final ParseObject result : results) {
       // For each item, extend the task with a function to delete the item.
-      task = task.continueWithTask(new Continuation<Void, Void>() {
-        public Void then(Void ignored) throws Exception {
+      task = task.continueWithTask(new Continuation<Void, Task<Void>>() {
+        public Task<Void> then(Task<Void> ignored) throws Exception {
           // Return a task that will be marked as completed when the delete is finished.
           return deleteAsync(result);
         }
@@ -240,7 +241,7 @@ findAsync(query).continueWithTask(new Continuation<List<ParseObject>, Void>() {
     return task;
   }
 }).continueWith(new Continuation<Void, Void>() {
-  public Void then(Void ignored) throws Exception {
+  public Void then(Task<Void> ignored) throws Exception {
     // Every comment was deleted.
     return null;
   }
@@ -255,8 +256,8 @@ You can also perform several tasks in parallel, using the `whenAll` method. You 
 ParseQuery<ParseObject> query = ParseQuery.getQuery("Comments");
 query.whereEqualTo("post", 123);
 
-findAsync(query).continueWithTask(new Continuation<List<ParseObject>, Void>() {
-  public Task<Void> then(List<ParseObject> results) throws Exception {
+findAsync(query).continueWithTask(new Continuation<List<ParseObject>, Task<Void>>() {
+  public Task<Void> then(Task<List<ParseObject>> results) throws Exception {
     // Collect one task for each delete into an array.
     ArrayList<Task<Void>> tasks = new ArrayList<Task<Void>>();
     for (ParseObject result : results) {
@@ -268,7 +269,7 @@ findAsync(query).continueWithTask(new Continuation<List<ParseObject>, Void>() {
     return Task.whenAll(tasks);
   }
 }).onSuccess(new Continuation<Void, Void>() {
-  public Void then(Void ignored) throws Exception {
+  public Void then(Task<Void> ignored) throws Exception {
     // Every comment was deleted.
     return null;
   }
@@ -311,7 +312,7 @@ For common cases, such as dispatching on the main thread, we have provided defau
 
 ```java
 fetchAsync(object).continueWith(new Continuation<ParseObject, Void>() {
-  public Void then(ParseObject object) throws Exception {
+  public Void then(Task<ParseObject> object) throws Exception {
     TextView textView = (TextView)findViewById(R.id.name);
     textView.setText(object.get("name"));
     return null;
@@ -327,32 +328,81 @@ One difficulty in breaking up code across multiple callbacks is that they have d
 // Capture a variable to be modified in the Task callbacks.
 final Capture<Integer> successfulSaveCount = new Capture<Integer>(0);
 
-saveAsync(obj1).onSuccessTask(new Continuation<ParseObject, ParseObject>() {
-  public Task<ParseObject> then(ParseObject obj1) throws Exception {
+saveAsync(obj1).onSuccessTask(new Continuation<ParseObject, Task<ParseObject>>() {
+  public Task<ParseObject> then(Task<ParseObject> obj1) throws Exception {
     successfulSaveCount.set(successfulSaveCount.get() + 1);
     return saveAsync(obj2);
   }
-}).onSuccessTask(new Continuation<ParseObject, ParseObject>() {
-  public Task<ParseObject> then(ParseObject obj2) throws Exception {
+}).onSuccessTask(new Continuation<ParseObject, Task<ParseObject>>() {
+  public Task<ParseObject> then(Task<ParseObject> obj2) throws Exception {
     successfulSaveCount.set(successfulSaveCount.get() + 1);
     return saveAsync(obj3);
   }
-}).onSuccessTask(new Continuation<ParseObject, ParseObject>() {
-  public Task<ParseObject> then(ParseObject obj3) throws Exception {
+}).onSuccessTask(new Continuation<ParseObject, Task<ParseObject>>() {
+  public Task<ParseObject> then(Task<ParseObject> obj3) throws Exception {
     successfulSaveCount.set(successfulSaveCount.get() + 1);
     return saveAsync(obj4);
   }
 }).onSuccess(new Continuation<ParseObject, Void>() {
-  public Void then(ParseObject obj4) throws Exception {
+  public Void then(Task<ParseObject> obj4) throws Exception {
     successfulSaveCount.set(successfulSaveCount.get() + 1);
     return null;
   }
 }).continueWith(new Continuation<Void, Integer>() {
-  public Integer then(Void ignored) throws Exception {
+  public Integer then(Task<Void> ignored) throws Exception {
     // successfulSaveCount now contains the number of saves that succeeded.
     return successfulSaveCount.get();
   }
 });
+```
+
+## Cancelling Tasks
+
+To cancel a task create a `CancellationTokenSource` and pass the corresponding token to any methods that create a task you want to cancel, then call `cancel()` on the source. This will cancel any ongoing tasks that the token was supplied to.
+
+
+```java
+CancellationTokenSource cts = new CancellationTokenSource();
+
+Task<Integer> stringTask = getIntAsync(cts.getToken());
+
+cts.cancel();
+```
+
+To cancel an asynchronous call using a token you must first modify the method to accept a `CancellationToken` and use the  `isCancellationRequested()` method to determine when to halt the operation.
+
+```java
+/**
+ Gets an Integer asynchronously.
+ */
+public Task<Integer> getIntAsync(CancellationToken ct) {
+  // Create a new Task
+  Task<Integer>.CompletionSource tcs = Task.create();
+
+  new Thread() {
+    @Override
+    public void run() {
+      // Check if cancelled at start
+      if (ct.isCancellationRequested()) {
+        tcs.setCancelled();
+        return;
+      }
+
+      int result = 0;
+      while (result < 100) {
+        // Poll isCancellationRequested in a loop
+        if (ct.isCancellationRequested()) {
+          tcs.setCancelled();
+          return;
+        }
+        result++;
+      }
+      tcs.setResult(result);
+    }
+  }.start();
+
+  return tcs.getTask();
+}
 ```
 
 # App Links
@@ -361,7 +411,7 @@ saveAsync(obj1).onSuccessTask(new Continuation<ParseObject, ParseObject>() {
 
 ## Handling an App Link
 
-The most common case for will be making your app receive App Links. In-linking will allow your users to quickly access the richest, most native-feeling presentation of linked content on their devices. Bolts makes it easy to handle an inbound App Link (as well as general inbound deep-links) by providing utilities for processing an incoming `Intent`.
+The most common case will be making your app receive App Links. In-linking will allow your users to quickly access the richest, most native-feeling presentation of linked content on their devices. Bolts makes it easy to handle an inbound App Link by providing utilities for processing an incoming `Intent`.
 
 For example, you can use the `AppLinks` utility class to parse an incoming `Intent` in your `Activity`:
 
@@ -374,23 +424,27 @@ protected void onCreate(Bundle savedInstanceState) {
   // to some extent.
 
   // Use the target URL from the App Link to locate content.
-  Uri targetUrl = AppLinks.getTargetUrl(getIntent());
-  String profileName = targetUrl.getLastPathSegment();
+  Uri targetUrl = AppLinks.getTargetUrlFromInboundIntent(getIntent());
+  if (targetUrl != null) {
+    // This is activity is started by app link intent.
 
-  // You can also check the query string easily.
-  String query = targetUrl.getQueryParameter("query");
+    // targetUrl is the URL shared externally. In most cases, you embed your content identifier
+    // in this data.
 
-  // Apps that have existing deep-linking support and map their App Links to existing
-  // deep-linking functionality may instead want to perform these operations on the original
-  // data URL.
-  String profileName = getIntent().getData().getLastPathSegment();
+    // If you need to access data that you are passing from the meta tag from your website or from opening app
+    // you can get them from AppLinkData.
+    Bundle applinkData = AppLinks.getAppLinkData(getIntent());
+    String id = applinkData.getString("id");
+    
+    // You can also get referrer data from AppLinkData
+    Bundle referrerAppData = applinkData.getBundle("referer_app_link");
 
-  // You can also check the query string easily.
-  String query = getIntent().getData().getQueryParameter("query");
-
-  // Apps can easily check the Extras and App Link data from the App Link as well.
-  String fbAccessToken = AppLinks.getAppLinkExtras("fb_access_token");
-  String refererData = AppLinks.getAppLinkExtras("referer");
+    // Apps can easily check the Extras from the App Link as well.
+    Bundle extras = AppLinks.getAppLinkExtras(getIntent());
+    String fbAccessToken = extras.getString("fb_access_token");
+  } else {
+    // Not an applink, your existing code goes here.
+  }
 }
 ```
 
@@ -430,9 +484,9 @@ Then, you can build an App Link request with any additional data you would like 
 
 ```java
 Bundle extras = new Bundle();
-extras.put("access_token", "t0kEn");
+extras.putString("fb_access_token", "t0kEn");
 Bundle appLinkData = new Bundle();
-appLinkData.put("12345");
+appLinkData.putString("id", "12345");
 AppLinkNavigation navigation = new AppLinkNavigation(link, extras, appLinkData);
 return navigation.navigate();
 ```
@@ -453,3 +507,55 @@ Alternatively, a you can swap out the default resolver to be used by the built-i
 AppLinkNavigation.setDefaultResolver(resolver);
 AppLinkNavigation.navigateInBackground(url);
 ```
+
+## Analytics
+
+Bolts introduces Measurement Event. App Links broadcast two Measurement Events to the application, which can be caught and integrated with existing analytics components in your application. ([Android Support Library v4](http://developer.android.com/tools/support-library/index.html) is required in your runtime to enable Analytics.)
+
+*  `al_nav_out` — Raised when your app sends out an App Links URL.
+*  `al_nav_in` — Raised when your app opens an incoming App Links URL or intent.
+
+### Listen for App Links Measurement Events
+
+There are other analytics tools that are integrated with Bolts' App Links events, but you can also listen for these events yourself:
+
+```java
+LocalBroadcastManager manager = LocalBroadcastManager.getInstance(context);
+manager.registerReceiver(
+    new BroadcastReceiver() {
+      @Override
+      public void onReceive(Context context, Intent intent) {
+        String eventName = intent.getStringExtra(MeasurementEvent.MEASUREMENT_EVENT_NAME_KEY);
+        if (eventName.equals(MeasurementEvent.APP_LINK_NAVIGATE_IN_EVENT_NAME)) {
+          Bundle eventArgs = intent.getBundleExtra(MeasurementEvent.MEASUREMENT_EVENT_ARGS_KEY);
+          String targetURL = eventArgs.getString("targetURL");
+          String referrerName = eventArgs.getString("refererAppName");
+          // Integrate to your logging/analytics component.
+        }
+      }
+    },
+    new IntentFilter(MeasurementEvent.MEASUREMENT_EVENT_NOTIFICATION_NAME)
+);
+```
+
+### App Links Event Fields
+
+App Links Measurement Events sends additional information from App Links Intents in flattened string key value pairs. Here are some of the useful fields for the two events.
+
+* `al_nav_in`
+  * `inputURL`: the URL that opens the app.
+  * `inputURLScheme`: the scheme of `inputURL`.
+  * `refererURL`: the URL that the referrer app added into `al_applink_data`: `referer_app_link`.
+  * `refererAppName`: the app name that the referrer app added to `al_applink_data`: `referer_app_link`.
+  * `sourceApplication`: the bundle of referrer application.
+  * `targetURL`: the `target_url` field in `al_applink_data`.
+  * `version`: App Links API  version.
+
+* `al_nav_out`
+  * `outputURL`: the URL used to open the other app (or browser). If there is an eligible app to open, this will be the custom scheme url/intent in `al_applink_data`.
+  * `outputURLScheme`: the scheme of `outputURL`.
+  * `sourceURL`: the URL of the page hosting App Links meta tags.
+  * `sourceURLHost`: the hostname of `sourceURL`.
+  * `success`: `“1”` to indicate success in opening the App Link in another app or browser; `“0”` to indicate failure to open the App Link.
+  * `type`: `“app”` for open in app, `“web”` for open in browser; `“fail”` when the success field is `“0”`.
+  * `version`: App Links API version.

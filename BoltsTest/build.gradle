@@ -1,6 +1,7 @@
-apply plugin: 'android'
+apply plugin: 'com.android.application'
 
 dependencies {
+    androidTestCompile "com.android.support:support-v4:21.0.0"
     compile project(':Bolts')
 }
 
