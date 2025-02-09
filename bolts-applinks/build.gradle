@@ -1,3 +1,8 @@
+// Copyright (c) Facebook, Inc. and its affiliates.
+//
+// This source code is licensed under the MIT license found in the/
+// LICENSE file in the root directory of this source tree.
+
 import com.android.builder.core.BuilderConstants
 
 apply plugin: 'com.android.library'
@@ -14,6 +19,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName project.version
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -24,11 +30,13 @@ android {
 }
 
 dependencies {
-    compile project(':bolts-tasks')
-
+    api project(':bolts-tasks')
+    implementation 'junit:junit:4.12'
     testCompile 'junit:junit:4.12'
+    androidTestCompile 'junit:junit:4.12'
+    androidTestCompile 'androidx.legacy:legacy-support-v4:1.0.0'
+    androidTestCompile "androidx.test:runner:1.1.1"
 
-    androidTestCompile 'com.android.support:support-v4:23.0.1'
 }
 
 android.libraryVariants.all { variant ->
@@ -92,7 +100,7 @@ uploadArchives {
 
             licenses {
                 license {
-                    name 'BSD License'
+                    name 'MIT License'
                     url 'https://github.com/BoltsFramework/Bolts-Android/blob/master/LICENSE'
                     distribution 'repo'
                 }

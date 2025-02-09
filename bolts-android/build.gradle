@@ -1,3 +1,8 @@
+// Copyright (c) Facebook, Inc. and its affiliates.
+//
+// This source code is licensed under the MIT license found in the/
+// LICENSE file in the root directory of this source tree.
+
 import com.android.builder.core.BuilderConstants
 
 apply plugin: 'com.android.library'
@@ -25,8 +30,8 @@ android {
 }
 
 dependencies {
-    compile project(':bolts-tasks')
-    compile project(':bolts-applinks')
+    api project(':bolts-tasks')
+    api project(':bolts-applinks')
 }
 
 android.libraryVariants.all { variant ->
@@ -90,7 +95,7 @@ uploadArchives {
 
             licenses {
                 license {
-                    name 'BSD License'
+                    name 'MIT License'
                     url 'https://github.com/BoltsFramework/Bolts-Android/blob/master/LICENSE'
                     distribution 'repo'
                 }
